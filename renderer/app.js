@@ -127,12 +127,16 @@
     return { norm, map };
   }
 
-  // 在原文中找出关键字出现的所有位置，返回 [start, end) 区间（基于原文下标）
-  function findRanges(text, keyword) {
-    const { norm, map } = normalize(text);
-    const target = normalize(keyword).norm;
-    if (!target) return [];
+  // 条文的归一化结果按条文缓存：条文加载后内容不变，算一次即可反复使用
+  function articleNorm(article) {
+    if (!article.normCache) article.normCache = normalize(article.body);
+    return article.normCache;
+  }
 
+  // 在已归一化的条文里找目标词，返回 [start, end) 区间（基于原文下标）
+  function rangesIn(cached, target) {
+    if (!target) return [];
+    const { norm, map } = cached;
     const ranges = [];
     let from = 0;
     for (;;) {
@@ -198,7 +202,17 @@
       required.push(token);
     }
 
-    return { raw: String(raw || '').trim(), required, excluded, articleNo };
+    return {
+      raw: String(raw || '').trim(),
+      required,
+      excluded,
+      articleNo,
+      // 预先把检索词归一化，避免在逐条匹配时反复计算
+      requiredNorm: required.map((word) => ({ word, norm: normalize(word).norm })).filter((item) => item.norm),
+      excludedNorm: excluded.map((word) => normalize(word).norm).filter(Boolean),
+      articleNoValue: articleNo ? articleNoValue(articleNo) : 0,
+      articleNoNorm: articleNo ? normalize(articleNo).norm : '',
+    };
   }
 
   // 合并重叠的标红区间，保证区间有序且不重叠
@@ -217,24 +231,26 @@
 
   // 一条法条是否命中；命中则返回需要标红的位置
   function matchArticle(article, lawName, query) {
-    if (query.articleNo && articleNoValue(article.no) !== articleNoValue(query.articleNo)) return null;
+    if (query.articleNoValue && articleNoValue(article.no) !== query.articleNoValue) return null;
 
-    for (const word of query.excluded) {
-      if (findRanges(article.body, word).length) return null; // 含排除词 → 丢弃
+    const cached = articleNorm(article); // 复用例文已缓存的归一化结果
+
+    for (const target of query.excludedNorm) {
+      if (rangesIn(cached, target).length) return null; // 含排除词 → 丢弃
     }
 
     const ranges = [];
-    for (const word of query.required) {
-      const inBody = findRanges(article.body, word);
+    for (const item of query.requiredNorm) {
+      const inBody = rangesIn(cached, item.norm);
       if (inBody.length) {
         ranges.push(...inBody);
         continue;
       }
       // 条号直达时，其余词允许匹配法规名（不必出现在条文里）
-      if (query.articleNo && normalize(lawName).norm.includes(normalize(word).norm)) continue;
+      if (query.articleNo && normalize(lawName).norm.includes(item.norm)) continue;
       return null;
     }
-    if (query.articleNo) ranges.push(...findRanges(article.body, query.articleNo));
+    if (query.articleNoNorm) ranges.push(...rangesIn(cached, query.articleNoNorm));
 
     return { ranges: mergeRanges(ranges) };
   }
