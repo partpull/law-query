@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'self'; script-src 'self'">
+  <title>法规查询v2.0 by 6bu</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="app">
+    <main class="body">
+      <!-- ① 左栏：查询条件 + ② 查询范围勾选 + ③ 遍历按钮 + ④ 法规库加载状态 -->
+      <aside class="pane-left">
+        <div class="sec">查询条件</div>
+
+        <div class="field" id="field">
+          <span class="ico" aria-hidden="true">
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+              <circle cx="7" cy="7" r="4.2" stroke="currentColor" stroke-width="1.4"/>
+              <path d="M10.3 10.3l3.2 3.2" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/>
+            </svg>
+          </span>
+          <input id="query" type="text" placeholder="输入法规关键字" spellcheck="false" autocomplete="off" aria-label="法规关键字">
+          <button class="clear" id="clear" type="button" title="清空关键字" aria-label="清空关键字">
+            <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+              <path d="M2.5 2.5l7 7M9.5 2.5l-7 7" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/>
+            </svg>
+          </button>
+        </div>
+
+        <!-- ② 查询范围：随「法规库」下的二级文件夹自动生成，可多选 -->
+        <div class="range-block">
+          <div class="range-h">
+            <span class="sec" id="range-title">查询范围</span>
+            <button class="range-all" id="range-all" type="button">全选</button>
+          </div>
+          <div class="menu" id="scope-menu"></div>
+          <div class="menu-note" id="scope-note">范围随「法规库」下的二级文件夹自动生成，可多选</div>
+        </div>
+
+        <button class="btn-run" id="run" type="button">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+            <circle cx="7" cy="7" r="4.2" stroke="currentColor" stroke-width="1.4"/>
+            <path d="M10.3 10.3l3.2 3.2" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/>
+          </svg>
+          遍历
+        </button>
+
+        <div class="stat">
+          <div class="stat-row"><span class="k">已加载法规</span><span class="v" id="stat-law">0 部</span></div>
+          <div class="stat-row"><span class="k">拆分法条</span><span class="v" id="stat-art">0 条</span></div>
+          <div class="stat-row"><span class="k">文档目录</span><span class="v-path" id="stat-dir">程序根目录\法规库</span></div>
+        </div>
+        <div class="note" id="load-note">正在读取法规库…</div>
+
+        <div class="tip">用法：① 按分类把 Word 放进「法规库」子文件夹 → ② 启动自动按条拆分 → ③ 勾选查询范围、输入关键字遍历 → ④ 点击结果看原文</div>
+      </aside>
+
+      <!-- ④ 右栏：匹配结果（按法规分组） -->
+      <section class="pane-right">
+        <div class="head">
+          <div class="h1">匹配结果</div>
+          <div class="pill" id="pill">0 条</div>
+        </div>
+        <div class="sub" id="sub">正在读取法规库…</div>
+
+        <div class="stage">
+          <div class="view" id="view-results">
+            <div class="list" id="list"></div>
+          </div>
+
+          <div class="view view--center is-off" id="view-loading">
+            <div class="prog"><i></i></div>
+            <div class="load-text" id="loading-text">正在遍历…</div>
+          </div>
+
+          <div class="view view--center is-off" id="view-empty">
+            <span class="empty-ico" aria-hidden="true">
+              <svg width="32" height="32" viewBox="0 0 32 32" fill="none">
+                <path d="M9 4h9.5L24 9.5V26H9z" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/>
+                <path d="M12.5 12h8M12.5 16h5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/>
+                <circle cx="21" cy="21" r="4.5" stroke="currentColor" stroke-width="1.4"/>
+                <path d="M24.4 24.4l3 3" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/>
+              </svg>
+            </span>
+            <div class="empty-t" id="empty-title">请输入法规关键字，然后点击【遍历】</div>
+            <div class="empty-s" id="empty-sub">正在读取法规库…</div>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <!-- ⑤ 法规原文窗口：固定高度，内部滚动，不挤压结果列表 -->
+    <section class="origin">
+      <div class="origin-head">
+        <span class="origin-title">法规原文</span>
+        <span class="origin-loc" id="origin-loc">未选择法条</span>
+      </div>
+      <div class="origin-body is-empty" id="origin-body">点击上方任意一条匹配结果，此处显示该条法条的完整原文。</div>
+    </section>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
