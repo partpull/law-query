@@ -144,6 +144,101 @@
     return ranges;
   }
 
+  /* ---------- 检索条件解析：空格＝同时满足、-词＝排除、第X条＝条号直达 ---------- */
+
+  const CN_NUM = '零〇一二三四五六七八九十百千万两';
+  const ARTICLE_NO_RE = new RegExp('^第\\s*[0-9０-９' + CN_NUM + ']+\\s*条$');
+  const CN_DIGITS = { 零: 0, 〇: 0, 一: 1, 二: 2, 三: 3, 四: 4, 五: 5, 六: 6, 七: 7, 八: 8, 九: 9, 两: 2 };
+  const CN_UNITS = { 十: 10, 百: 100, 千: 1000, 万: 10000 };
+
+  // 「第二十一条」→ 21
+  function articleNoValue(no) {
+    const raw = String(no)
+      .replace(/^第/, '')
+      .replace(/条$/, '')
+      .replace(/[０-９]/g, (d) => String.fromCharCode(d.charCodeAt(0) - 0xfee0));
+    if (/^\d+$/.test(raw)) return Number(raw);
+
+    let total = 0;
+    let section = 0;
+    let digit = 0;
+    for (const ch of raw) {
+      if (ch in CN_DIGITS) digit = CN_DIGITS[ch];
+      else if (ch in CN_UNITS) {
+        const unit = CN_UNITS[ch];
+        if (unit === 10000) {
+          section = (section + digit) * unit;
+          total += section;
+          section = 0;
+        } else section += (digit || 1) * unit;
+        digit = 0;
+      }
+    }
+    return total + section + digit;
+  }
+
+  function parseQuery(raw) {
+    const tokens = String(raw || '')
+      .split(/[\s\u3000]+/)
+      .filter(Boolean);
+
+    const required = [];
+    const excluded = [];
+    let articleNo = '';
+
+    for (const token of tokens) {
+      if (token.length > 1 && token.startsWith('-')) {
+        excluded.push(token.slice(1));
+        continue;
+      }
+      if (ARTICLE_NO_RE.test(token)) {
+        articleNo = token.replace(/\s+/g, '');
+        continue;
+      }
+      required.push(token);
+    }
+
+    return { raw: String(raw || '').trim(), required, excluded, articleNo };
+  }
+
+  // 合并重叠的标红区间，保证区间有序且不重叠
+  function mergeRanges(ranges) {
+    if (ranges.length < 2) return ranges;
+    const sorted = ranges.slice().sort((a, b) => a[0] - b[0] || a[1] - b[1]);
+    const merged = [sorted[0].slice()];
+    for (let i = 1; i < sorted.length; i += 1) {
+      const last = merged[merged.length - 1];
+      const [start, end] = sorted[i];
+      if (start <= last[1]) last[1] = Math.max(last[1], end);
+      else merged.push([start, end]);
+    }
+    return merged;
+  }
+
+  // 一条法条是否命中；命中则返回需要标红的位置
+  function matchArticle(article, lawName, query) {
+    if (query.articleNo && articleNoValue(article.no) !== articleNoValue(query.articleNo)) return null;
+
+    for (const word of query.excluded) {
+      if (findRanges(article.body, word).length) return null; // 含排除词 → 丢弃
+    }
+
+    const ranges = [];
+    for (const word of query.required) {
+      const inBody = findRanges(article.body, word);
+      if (inBody.length) {
+        ranges.push(...inBody);
+        continue;
+      }
+      // 条号直达时，其余词允许匹配法规名（不必出现在条文里）
+      if (query.articleNo && normalize(lawName).norm.includes(normalize(word).norm)) continue;
+      return null;
+    }
+    if (query.articleNo) ranges.push(...findRanges(article.body, query.articleNo));
+
+    return { ranges: mergeRanges(ranges) };
+  }
+
   /* ---------- HTML 拼装 ---------- */
 
   function escapeHtml(text) {
@@ -180,7 +275,7 @@
 
   /* ---------- 遍历匹配 ---------- */
 
-  function searchAll(keyword, laws) {
+  function searchAll(query, laws) {
     const groups = [];
     const hits = [];
     let total = 0;
@@ -189,10 +284,10 @@
       const lawHits = [];
       for (let i = 0; i < law.articles.length; i += 1) {
         const article = law.articles[i];
-        const ranges = findRanges(article.body, keyword);
-        if (!ranges.length) continue; // 每条都检查，命中即收录
+        const matched = matchArticle(article, law.name, query);
+        if (!matched) continue; // 每条都检查，命中即收录
         const nextNo = law.articles[i + 1] ? law.articles[i + 1].no : ''; // 下一条的条号，用于说明本条范围
-        const hit = { law: law.name, no: article.no, body: article.body, ranges, nextNo };
+        const hit = { law: law.name, no: article.no, body: article.body, ranges: matched.ranges, nextNo };
         lawHits.push(hit);
         hits.push(hit);
       }
@@ -201,7 +296,22 @@
         total += lawHits.length;
       }
     }
-    return { groups, hits, total, lawCount: groups.length };
+
+    // 条号直达时，法规名匹配检索词的法规排前面（更接近「直接定位」的预期）
+    let orderedHits = hits;
+    if (query.articleNo && groups.length > 1) {
+      const required = query.required.map((word) => normalize(word).norm).filter(Boolean);
+      if (required.length) {
+        const rank = (name) => {
+          const norm = normalize(name).norm;
+          return required.some((word) => norm.includes(word)) ? 0 : 1;
+        };
+        groups.sort((a, b) => rank(a.name) - rank(b.name));
+        orderedHits = groups.reduce((list, group) => list.concat(group.hits), []);
+      }
+    }
+
+    return { groups, hits: orderedHits, total, lawCount: groups.length };
   }
 
   /* ---------- 视图切换 ---------- */
@@ -244,16 +354,18 @@
 
   /* ---------- 结果渲染 ---------- */
 
-  function renderResults(result, keyword, laws) {
+  function renderResults(result, query, laws) {
     el.list.innerHTML = '';
 
     const scopeText = '范围 ' + state.selected.size + '/' + state.scopes.length + ' · 遍历 ' + summaryOf(laws);
 
     if (!result.total) {
       el.pill.textContent = '0 条';
-      el.sub.textContent = '关键字「' + keyword + '」· ' + scopeText + ' · 无匹配';
-      el.emptyTitle.textContent = '未找到包含「' + keyword + '」的法条';
-      el.emptySub.textContent = '已遍历 ' + summaryOf(laws) + '，可以换个关键字或调整查询范围';
+      el.sub.textContent = '检索条件「' + query.raw + '」· ' + scopeText + ' · 无匹配';
+      el.emptyTitle.textContent = '未找到匹配「' + query.raw + '」的法条';
+      el.emptySub.textContent = query.articleNo
+        ? '已遍历 ' + summaryOf(laws) + '；可确认该法规是否有「' + query.articleNo + '」，或去掉条号改用关键字'
+        : '已遍历 ' + summaryOf(laws) + '；可减少条件（空格表示同时满足）或调整查询范围';
       showView('empty');
       resetOrigin();
       return;
@@ -307,7 +419,7 @@
 
     el.pill.textContent = result.total + ' 条';
     el.sub.textContent =
-      '关键字「' + keyword + '」· ' + scopeText + ' · 命中 ' + result.lawCount + ' 部 / 共 ' + result.total + ' 条';
+      '检索条件「' + query.raw + '」· ' + scopeText + ' · 命中 ' + result.lawCount + ' 部 / 共 ' + result.total + ' 条';
     showView('results');
 
     selectHit(0);
@@ -339,7 +451,7 @@
   /* ---------- 交互 ---------- */
 
   function runSearch() {
-    const keyword = el.query.value.trim();
+    const query = parseQuery(el.query.value);
 
     if (!state.scopes.length) {
       showDefaultEmpty();
@@ -349,23 +461,24 @@
       showScopeEmpty();
       return;
     }
-    if (!keyword) {
+    // 只写了排除词时没有可匹配的内容
+    if (!query.required.length && !query.articleNo) {
       showDefaultEmpty();
       el.query.focus();
       return;
     }
 
     const laws = scopedLaws();
-    state.keyword = keyword;
+    state.keyword = query.raw;
     el.pill.textContent = '…';
-    el.sub.textContent = '关键字「' + keyword + '」· 遍历中…';
+    el.sub.textContent = '检索条件「' + query.raw + '」· 遍历中…';
     el.loadingText.textContent = '正在遍历 ' + summaryOf(laws) + '…';
     showView('loading');
 
     // 让「遍历中」的界面先画出来，再做同步匹配
     setTimeout(() => {
-      const result = searchAll(keyword, laws);
-      renderResults(result, keyword, laws);
+      const result = searchAll(query, laws);
+      renderResults(result, query, laws);
     }, 30);
   }
 
@@ -422,7 +535,10 @@
       return;
     }
 
+    const startedAt = performance.now();
     const result = await window.lawAPI.loadLibrary();
+    const seconds = ((performance.now() - startedAt) / 1000).toFixed(1);
+
     state.laws = result.laws || [];
     state.scopes = result.scopes || [];
     state.scopes.forEach((scope) => state.selected.add(scope.id)); // 默认全选
@@ -442,8 +558,11 @@
     } else if (!state.laws.length) {
       el.loadNote.textContent = '法规库为空：请放入 .docx 法规文件后重新启动';
     } else {
+      const cacheText = result.parsedCount
+        ? '缓存命中 ' + (result.cacheHits || 0) + '，本次解析 ' + result.parsedCount
+        : '全部命中缓存';
       el.loadNote.textContent =
-        '已读取 ' + (result.fileCount || 0) + ' 个 Word 文件，分 ' + state.scopes.length + ' 个查询范围';
+        '已读取 ' + (result.fileCount || 0) + ' 个 Word 文件（' + cacheText + '）· ' + seconds + ' 秒';
     }
 
     showDefaultEmpty();

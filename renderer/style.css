@@ -145,6 +145,17 @@ button {
   transition: transform 120ms ease-out;
 }
 
+/* 检索语法提示 */
+.arg-hint {
+  font: var(--weight-regular) var(--text-caption) var(--font-sans);
+  color: var(--text-muted);
+}
+
+.arg-hint b {
+  font: var(--weight-medium) var(--text-caption) var(--font-mono);
+  color: var(--brand-text);
+}
+
 /* ---------- 查询范围勾选菜单（范围来自「法规库」下的二级文件夹） ---------- */
 .range-block {
   display: flex;

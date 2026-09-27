@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'self'; script-src 'self'">
-  <title>法规查询v3.0 by 6bu</title>
+  <title>法规查询v4.0 by 6bu</title>
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -20,13 +20,15 @@
               <path d="M10.3 10.3l3.2 3.2" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/>
             </svg>
           </span>
-          <input id="query" type="text" placeholder="输入法规关键字" spellcheck="false" autocomplete="off" aria-label="法规关键字">
+          <input id="query" type="text" placeholder="输入关键字，或“法规名 第X条”" spellcheck="false" autocomplete="off" aria-label="法规关键字">
           <button class="clear" id="clear" type="button" title="清空关键字" aria-label="清空关键字">
             <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
               <path d="M2.5 2.5l7 7M9.5 2.5l-7 7" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/>
             </svg>
           </button>
         </div>
+
+        <div class="arg-hint">空格＝同时满足 · <b>-词</b>＝排除<br>也可输入 <b>政府采购法 第二十一条</b> 直接定位条号</div>
 
         <!-- ② 查询范围：随「法规库」下的二级文件夹自动生成，可多选 -->
         <div class="range-block">

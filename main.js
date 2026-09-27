@@ -4,6 +4,8 @@ const library = require('./lib/library');
 
 // 法规 Word 文件所在的文件夹名（位于程序根目录）
 const LIB_DIR_NAME = '法规库';
+// 拆条索引缓存（放在用户数据目录，不写进法规库）
+const CACHE_FILE = 'law-index-cache.json';
 
 // 打包后：程序根目录 = exe 所在目录；开发时：项目根目录
 function getBaseDir() {
@@ -18,7 +20,7 @@ function createWindow() {
     height: 760,
     minWidth: 940,
     minHeight: 600,
-    title: '法规查询v3.0 by 6bu',
+    title: '法规查询v4.0 by 6bu',
     backgroundColor: '#F7F7F8',
     show: false,
     webPreferences: {
@@ -39,9 +41,13 @@ function createWindow() {
 }
 
 app.whenReady().then(() => {
-  // 启动时读取法规库，把「法规名 + 条号 + 条文」索引交给界面
+  // 启动时读取法规库，把「法规名 + 条号 + 条文」索引交给界面（命中缓存则跳过解析）
   ipcMain.handle('library:load', () =>
-    library.loadLibrary(path.join(getBaseDir(), LIB_DIR_NAME), LIB_DIR_NAME)
+    library.loadLibrary(
+      path.join(getBaseDir(), LIB_DIR_NAME),
+      LIB_DIR_NAME,
+      path.join(app.getPath('userData'), CACHE_FILE)
+    )
   );
 
   createWindow();
