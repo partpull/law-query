@@ -534,6 +534,26 @@ mark {
   color: var(--brand-text);
 }
 
+/* 完整性与字数标注：让「显示的是完整条文」一眼可见 */
+.origin-count {
+  margin-left: auto;
+  font: var(--weight-medium) var(--text-caption) var(--font-sans);
+  color: var(--brand-text);
+  font-variant-numeric: tabular-nums;
+}
+
+.origin-no {
+  font: var(--weight-medium) var(--text-body) var(--font-sans);
+  color: var(--brand-text);
+}
+
+/* 本条范围说明（固定在窗口底部，不随正文滚动） */
+.origin-foot {
+  flex: none;
+  font: var(--weight-regular) var(--text-caption) var(--font-sans);
+  color: var(--text-muted);
+}
+
 .origin-body {
   flex: 1;
   min-height: 0;

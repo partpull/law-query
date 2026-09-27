@@ -18,7 +18,7 @@ function createWindow() {
     height: 760,
     minWidth: 940,
     minHeight: 600,
-    title: '法规查询v2.0 by 6bu',
+    title: '法规查询v3.0 by 6bu',
     backgroundColor: '#F7F7F8',
     show: false,
     webPreferences: {

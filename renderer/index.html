@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'self'; script-src 'self'">
-  <title>法规查询v2.0 by 6bu</title>
+  <title>法规查询v3.0 by 6bu</title>
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -90,13 +90,15 @@
       </section>
     </main>
 
-    <!-- ⑤ 法规原文窗口：固定高度，内部滚动，不挤压结果列表 -->
+    <!-- ⑤ 法规原文窗口：固定高度 + 右侧滚动条，标明完整性与本条范围 -->
     <section class="origin">
       <div class="origin-head">
         <span class="origin-title">法规原文</span>
         <span class="origin-loc" id="origin-loc">未选择法条</span>
+        <span class="origin-count" id="origin-count"></span>
       </div>
       <div class="origin-body is-empty" id="origin-body">点击上方任意一条匹配结果，此处显示该条法条的完整原文。</div>
+      <div class="origin-foot" id="origin-foot" hidden></div>
     </section>
   </div>
 

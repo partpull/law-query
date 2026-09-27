@@ -27,6 +27,8 @@
     emptyTitle: document.getElementById('empty-title'),
     emptySub: document.getElementById('empty-sub'),
     originLoc: document.getElementById('origin-loc'),
+    originCount: document.getElementById('origin-count'),
+    originFoot: document.getElementById('origin-foot'),
     originBody: document.getElementById('origin-body'),
   };
 
@@ -185,10 +187,12 @@
 
     for (const law of laws) {
       const lawHits = [];
-      for (const article of law.articles) {
+      for (let i = 0; i < law.articles.length; i += 1) {
+        const article = law.articles[i];
         const ranges = findRanges(article.body, keyword);
         if (!ranges.length) continue; // 每条都检查，命中即收录
-        const hit = { law: law.name, no: article.no, body: article.body, ranges };
+        const nextNo = law.articles[i + 1] ? law.articles[i + 1].no : ''; // 下一条的条号，用于说明本条范围
+        const hit = { law: law.name, no: article.no, body: article.body, ranges, nextNo };
         lawHits.push(hit);
         hits.push(hit);
       }
@@ -232,6 +236,8 @@
 
   function resetOrigin() {
     el.originLoc.textContent = '未选择法条';
+    el.originCount.textContent = '';
+    el.originFoot.hidden = true;
     el.originBody.classList.add('is-empty');
     el.originBody.textContent = '点击上方任意一条匹配结果，此处显示该条法条的完整原文。';
   }
@@ -315,9 +321,18 @@
     const items = el.list.querySelectorAll('.item');
     items.forEach((node) => node.classList.toggle('is-sel', node.dataset.idx === String(index)));
 
+    // 原文窗口：条号 + 完整条文 + 本条范围说明，方便一眼确认没有截断
+    const chars = hit.body.replace(/\s/g, '').length;
     el.originLoc.innerHTML = escapeHtml(hit.law) + ' - <span class="loc">' + escapeHtml(hit.no) + '</span>';
+    el.originCount.textContent = '完整条文 · 共 ' + chars + ' 字';
+    el.originFoot.hidden = false;
+    el.originFoot.textContent = hit.nextNo
+      ? '本条范围：从段首「' + hit.no + '」到下一个段首「' + hit.nextNo + '」之前的全部文本'
+      : '本条范围：从段首「' + hit.no + '」到文末的全部文本';
+
     el.originBody.classList.remove('is-empty');
-    el.originBody.innerHTML = markHtml(hit.body, hit.ranges);
+    el.originBody.innerHTML =
+      '<span class="origin-no">' + escapeHtml(hit.no) + '</span> ' + markHtml(hit.body, hit.ranges);
     el.originBody.scrollTop = 0;
   }
 

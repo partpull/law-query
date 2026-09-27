@@ -1,11 +1,11 @@
 {
   "name": "law-query",
-  "version": "2.0.0",
+  "version": "3.0.0",
   "description": "法规查询 - 按条检索法律法规，支持按分类范围查询（Win11 桌面程序）",
   "main": "main.js",
   "scripts": {
     "start": "electron .",
-    "dist": "electron-builder --win"
+    "dist": "electron-builder --win --publish never"
   },
   "author": "",
   "license": "MIT",
@@ -18,9 +18,9 @@
   },
   "build": {
     "appId": "com.lawquery.app",
-    "productName": "法规查询v2.0 by 6bu",
+    "productName": "法规查询v3.0 by 6bu",
     "directories": {
-      "output": "dist"
+      "output": "dist3"
     },
     "win": {
       "target": "nsis"
