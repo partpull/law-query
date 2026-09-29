@@ -463,6 +463,22 @@ mark {
   font-weight: var(--weight-medium);
 }
 
+/* 分组折叠：展开/收起其余命中的按钮 */
+.fold-toggle {
+  align-self: flex-start;
+  padding: var(--spacer-4) var(--spacer-12);
+  background: var(--surface-raise);
+  border: 1px dashed var(--border);
+  border-radius: var(--radius-full);
+  color: var(--brand-text);
+  font: var(--weight-medium) var(--text-caption) var(--font-sans);
+  cursor: pointer;
+}
+
+.fold-toggle:hover {
+  border-color: var(--brand);
+}
+
 .prog {
   width: 160px;
   height: 2px;

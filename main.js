@@ -1,6 +1,10 @@
 const { app, BrowserWindow, ipcMain } = require('electron');
 const path = require('path');
 const library = require('./lib/library');
+const pkg = require('./package.json');
+
+// 程序名格式：法规查询vX.X by 6bu（X.X = 主版本.次版本，自动跟随 package.json）
+const APP_TITLE = '法规查询v' + pkg.version.split('.').slice(0, 2).join('.') + ' by 6bu';
 
 // 法规 Word 文件所在的文件夹名（位于程序根目录）
 const LIB_DIR_NAME = '法规库';
@@ -20,7 +24,7 @@ function createWindow() {
     height: 760,
     minWidth: 940,
     minHeight: 600,
-    title: '法规查询v4.0 by 6bu',
+    title: APP_TITLE,
     backgroundColor: '#F7F7F8',
     show: false,
     webPreferences: {
@@ -41,14 +45,13 @@ function createWindow() {
 }
 
 app.whenReady().then(() => {
-  // 启动时读取法规库，把「法规名 + 条号 + 条文」索引交给界面（命中缓存则跳过解析）
-  ipcMain.handle('library:load', () =>
-    library.loadLibrary(
-      path.join(getBaseDir(), LIB_DIR_NAME),
-      LIB_DIR_NAME,
-      path.join(app.getPath('userData'), CACHE_FILE)
-    )
+  // 应用就绪即开始读取法规库：与窗口创建、页面加载并行，不必等渲染进程发起请求
+  const libraryReady = library.loadLibrary(
+    path.join(getBaseDir(), LIB_DIR_NAME),
+    LIB_DIR_NAME,
+    path.join(app.getPath('userData'), CACHE_FILE)
   );
+  ipcMain.handle('library:load', () => libraryReady);
 
   createWindow();
 

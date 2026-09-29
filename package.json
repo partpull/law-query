@@ -1,6 +1,6 @@
 {
   "name": "law-query",
-  "version": "4.0.0",
+  "version": "4.1.0",
   "description": "法规查询 - 按条检索法律法规，支持多关键字、条号直达、按分类范围查询（Win11 桌面程序）",
   "main": "main.js",
   "scripts": {
@@ -18,9 +18,9 @@
   },
   "build": {
     "appId": "com.lawquery.app",
-    "productName": "法规查询v4.0 by 6bu",
+    "productName": "法规查询v4.1 by 6bu",
     "directories": {
-      "output": "dist4"
+      "output": "dist5"
     },
     "win": {
       "target": "nsis"

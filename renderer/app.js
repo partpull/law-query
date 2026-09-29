@@ -1,8 +1,10 @@
-// 法规查询 v2.0 —— 界面逻辑：查询范围勾选、遍历匹配、标红、按法规分组、原文窗口
+// 法规查询 v4.1 —— 界面逻辑：查询范围勾选、遍历匹配、标红、按法规分组、原文窗口
 (() => {
   'use strict';
 
   const PREVIEW_LIMIT = 150; // 结果列表里每条法条展示的字数
+  const FOLD_AFTER = 5; // 每组默认最多展开条数，其余折叠
+  const DEBOUNCE_MS = 300; // 输入防抖间隔
 
   const el = {
     field: document.getElementById('field'),
@@ -38,6 +40,11 @@
     selected: new Set(), // 已勾选的范围 id
     hits: [], // 扁平化的命中列表，供点击时取数据
     keyword: '',
+    selectedIdx: -1, // 当前选中的 hit 索引
+    lastSelEl: null, // 上一个选中的 DOM 节点，避免 querySelectorAll 全量遍历
+    expandedGroups: new Set(), // 已展开的法规名（默认折叠，点击后展开）
+    searchTimer: null, // 防抖定时器，也用于防止连点【遍历】
+    lawNameNormCache: new Map(), // 法规名归一化缓存，避免逐条重复计算
   };
 
   const CHECK_SVG =
@@ -229,17 +236,28 @@
     return merged;
   }
 
+  // 法规名归一化缓存（按法规提升出循环，避免逐条重复计算）
+  function getLawNameNorm(name) {
+    let cached = state.lawNameNormCache.get(name);
+    if (!cached) {
+      cached = normalize(name).norm;
+      state.lawNameNormCache.set(name, cached);
+    }
+    return cached;
+  }
+
   // 一条法条是否命中；命中则返回需要标红的位置
   function matchArticle(article, lawName, query) {
     if (query.articleNoValue && articleNoValue(article.no) !== query.articleNoValue) return null;
 
-    const cached = articleNorm(article); // 复用例文已缓存的归一化结果
+    const cached = articleNorm(article); // 复用条文已缓存的归一化结果
 
     for (const target of query.excludedNorm) {
-      if (rangesIn(cached, target).length) return null; // 含排除词 → 丢弃
+      if (cached.norm.indexOf(target) >= 0) return null; // 含排除词 → 丢弃（直接用 indexOf 判断存在性，避免建数组）
     }
 
     const ranges = [];
+    const lawNorm = query.articleNo ? getLawNameNorm(lawName) : ''; // 条号直达时才需要法规名归一化
     for (const item of query.requiredNorm) {
       const inBody = rangesIn(cached, item.norm);
       if (inBody.length) {
@@ -247,7 +265,7 @@
         continue;
       }
       // 条号直达时，其余词允许匹配法规名（不必出现在条文里）
-      if (query.articleNo && normalize(lawName).norm.includes(item.norm)) continue;
+      if (query.articleNo && lawNorm.includes(item.norm)) continue;
       return null;
     }
     if (query.articleNoNorm) ranges.push(...rangesIn(cached, query.articleNoNorm));
@@ -319,7 +337,7 @@
       const required = query.required.map((word) => normalize(word).norm).filter(Boolean);
       if (required.length) {
         const rank = (name) => {
-          const norm = normalize(name).norm;
+          const norm = getLawNameNorm(name);
           return required.some((word) => norm.includes(word)) ? 0 : 1;
         };
         groups.sort((a, b) => rank(a.name) - rank(b.name));
@@ -368,7 +386,7 @@
     el.originBody.textContent = '点击上方任意一条匹配结果，此处显示该条法条的完整原文。';
   }
 
-  /* ---------- 结果渲染 ---------- */
+  /* ---------- 结果渲染（每组默认折叠，点击展开） ---------- */
 
   function renderResults(result, query, laws) {
     el.list.innerHTML = '';
@@ -406,7 +424,10 @@
       headEl.appendChild(cntEl);
       groupEl.appendChild(headEl);
 
-      for (const hit of group.hits) {
+      const isExpanded = state.expandedGroups.has(group.name);
+      const visibleHits = isExpanded ? group.hits : group.hits.slice(0, FOLD_AFTER);
+
+      for (const hit of visibleHits) {
         const itemEl = document.createElement('div');
         itemEl.className = 'item';
         itemEl.dataset.idx = String(index);
@@ -427,6 +448,21 @@
         itemEl.appendChild(bodyEl);
         groupEl.appendChild(itemEl);
       }
+
+      // 超出默认显示条数时，提供展开/收起按钮
+      if (group.hits.length > FOLD_AFTER) {
+        const toggleEl = document.createElement('button');
+        toggleEl.className = 'fold-toggle';
+        toggleEl.type = 'button';
+        toggleEl.dataset.group = group.name;
+        if (isExpanded) {
+          toggleEl.textContent = '收起（仅显示前 ' + FOLD_AFTER + ' 条）';
+        } else {
+          toggleEl.textContent = '展开其余 ' + (group.hits.length - FOLD_AFTER) + ' 条';
+        }
+        groupEl.appendChild(toggleEl);
+      }
+
       frag.appendChild(groupEl);
     }
 
@@ -446,8 +482,12 @@
     const hit = state.hits[index];
     if (!hit) return;
 
-    const items = el.list.querySelectorAll('.item');
-    items.forEach((node) => node.classList.toggle('is-sel', node.dataset.idx === String(index)));
+    // O(1)：只操作上一个和新选中的两个节点，不再 querySelectorAll 全量遍历
+    if (state.lastSelEl) state.lastSelEl.classList.remove('is-sel');
+    const newEl = el.list.querySelector('.item[data-idx="' + index + '"]');
+    if (newEl) newEl.classList.add('is-sel');
+    state.lastSelEl = newEl || null;
+    state.selectedIdx = index;
 
     // 原文窗口：条号 + 完整条文 + 本条范围说明，方便一眼确认没有截断
     const chars = hit.body.replace(/\s/g, '').length;
@@ -466,7 +506,7 @@
 
   /* ---------- 交互 ---------- */
 
-  function runSearch() {
+  function performSearch() {
     const query = parseQuery(el.query.value);
 
     if (!state.scopes.length) {
@@ -486,6 +526,7 @@
 
     const laws = scopedLaws();
     state.keyword = query.raw;
+    state.expandedGroups.clear(); // 每次新搜索重置折叠状态
     el.pill.textContent = '…';
     el.sub.textContent = '检索条件「' + query.raw + '」· 遍历中…';
     el.loadingText.textContent = '正在遍历 ' + summaryOf(laws) + '…';
@@ -498,15 +539,57 @@
     }, 30);
   }
 
+  function runSearch() {
+    // 取消上一次的防抖/遍历，防止连点叠加
+    if (state.searchTimer) clearTimeout(state.searchTimer);
+    state.searchTimer = null;
+    performSearch();
+  }
+
+  function scheduleSearch() {
+    if (state.searchTimer) clearTimeout(state.searchTimer);
+    state.searchTimer = setTimeout(() => {
+      state.searchTimer = null;
+      performSearch();
+    }, DEBOUNCE_MS);
+  }
+
   function bindEvents() {
     el.run.addEventListener('click', runSearch);
 
     el.query.addEventListener('keydown', (event) => {
-      if (event.key === 'Enter') runSearch();
+      if (event.key === 'Enter') {
+        runSearch();
+        return;
+      }
+      // 键盘导航：↑/↓ 在结果间移动，原文窗口联动刷新
+      if (!el.viewResults.classList.contains('is-off') && state.hits.length) {
+        if (event.key === 'ArrowUp') {
+          event.preventDefault();
+          const next = Math.max(0, state.selectedIdx - 1);
+          selectHit(next);
+          scrollItemIntoView(next);
+          return;
+        }
+        if (event.key === 'ArrowDown') {
+          event.preventDefault();
+          const next = Math.min(state.hits.length - 1, state.selectedIdx + 1);
+          selectHit(next);
+          scrollItemIntoView(next);
+          return;
+        }
+      }
     });
 
     el.query.addEventListener('input', () => {
-      if (!el.query.value.trim()) showDefaultEmpty();
+      const val = el.query.value.trim();
+      if (!val) {
+        if (state.searchTimer) clearTimeout(state.searchTimer);
+        state.searchTimer = null;
+        showDefaultEmpty();
+        return;
+      }
+      scheduleSearch();
     });
 
     el.query.addEventListener('focus', () => el.field.classList.add('is-focus'));
@@ -514,6 +597,8 @@
 
     el.clear.addEventListener('click', () => {
       el.query.value = '';
+      if (state.searchTimer) clearTimeout(state.searchTimer);
+      state.searchTimer = null;
       showDefaultEmpty();
       el.query.focus();
     });
@@ -533,12 +618,34 @@
       else showScopeEmpty();
     });
 
-    // 结果点击：切换选中 + 刷新法规原文窗口
+    // 结果点击：切换选中 + 刷新法规原文窗口；展开/收起折叠
     el.list.addEventListener('click', (event) => {
+      const toggle = event.target.closest('.fold-toggle');
+      if (toggle) {
+        const name = toggle.dataset.group;
+        if (state.expandedGroups.has(name)) state.expandedGroups.delete(name);
+        else state.expandedGroups.add(name);
+        // 就地重新渲染当前搜索（保留 query 和 laws）
+        const query = parseQuery(el.query.value);
+        const laws = scopedLaws();
+        const result = searchAll(query, laws);
+        renderResults(result, query, laws);
+        return;
+      }
       const item = event.target.closest('.item');
       if (!item) return;
       selectHit(Number(item.dataset.idx));
     });
+  }
+
+  function scrollItemIntoView(index) {
+    const item = el.list.querySelector('.item[data-idx="' + index + '"]');
+    if (!item) return;
+    const container = el.viewResults;
+    const itemTop = item.offsetTop - container.offsetTop;
+    const itemBottom = itemTop + item.offsetHeight;
+    if (itemTop < container.scrollTop) container.scrollTop = itemTop - 8;
+    else if (itemBottom > container.scrollTop + container.clientHeight) container.scrollTop = itemBottom - container.clientHeight + 8;
   }
 
   /* ---------- 启动：读取法规库 ---------- */
@@ -583,6 +690,34 @@
 
     showDefaultEmpty();
     el.query.focus();
+
+    // 空闲时预归一化：让首次搜索直接达到全速（不依赖懒计算）
+    if (typeof requestIdleCallback === 'function') {
+      requestIdleCallback((deadline) => preNormalizeBatch(deadline), { timeout: 2000 });
+    } else {
+      setTimeout(preNormalizeAll, 500);
+    }
+  }
+
+  // 空闲时间分批预归一化，避免一次性阻塞主线程
+  function preNormalizeBatch(deadline) {
+    let done = 0;
+    for (const law of state.laws) {
+      for (const article of law.articles) {
+        articleNorm(article);
+        done += 1;
+        if (deadline.timeRemaining() <= 0) {
+          requestIdleCallback((d) => preNormalizeBatch(d), { timeout: 2000 });
+          return;
+        }
+      }
+    }
+  }
+
+  function preNormalizeAll() {
+    for (const law of state.laws) {
+      for (const article of law.articles) articleNorm(article);
+    }
   }
 
   window.addEventListener('DOMContentLoaded', init);
