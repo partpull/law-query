@@ -52,8 +52,8 @@ button {
 
 .app {
   display: grid;
-  /* 结果区自适应剩余高度；法规原文窗口固定 150px，超出部分在窗口内滚动 */
-  grid-template-rows: 1fr 150px;
+  /* 结果区自适应剩余高度；法规原文窗口固定 240px，超出部分在窗口内滚动 */
+  grid-template-rows: 1fr 240px;
   height: 100vh;
 }
 
