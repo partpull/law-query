@@ -454,6 +454,9 @@
         groupEl.appendChild(itemEl);
       }
 
+      // 折叠时跳过未渲染的命中，保证 data-idx 与完整列表 state.hits 的全局下标一致
+      index += group.hits.length - visibleHits.length;
+
       // 超出默认显示条数时，提供展开/收起按钮
       if (group.hits.length > FOLD_AFTER) {
         const toggleEl = document.createElement('button');
