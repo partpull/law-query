@@ -43,6 +43,7 @@
     selected: new Set(), // 已勾选的范围 id
     hits: [], // 扁平化的命中列表，供点击时取数据
     keyword: '',
+    folderLabel: '法规库',
     selectedIdx: -1, // 当前选中的 hit 索引
     lastSelEl: null, // 上一个选中的 DOM 节点，避免 querySelectorAll 全量遍历
     expandedGroups: new Set(), // 已展开的法规名（默认折叠，点击后展开）
@@ -571,21 +572,18 @@
         runSearch();
         return;
       }
-      // 键盘导航：↑/↓ 在结果间移动，原文窗口联动刷新
-      if (!el.viewResults.classList.contains('is-off') && state.hits.length) {
-        if (event.key === 'ArrowUp') {
+      // 键盘导航：↑/↓ 在“当前可见”的结果间移动，原文窗口联动刷新
+      if (!el.viewResults.classList.contains('is-off')) {
+        const items = Array.from(el.list.querySelectorAll('.item'));
+        if (!items.length) return;
+        if (event.key === 'ArrowUp' || event.key === 'ArrowDown') {
           event.preventDefault();
-          const next = Math.max(0, state.selectedIdx - 1);
-          selectHit(next);
-          scrollItemIntoView(next);
-          return;
-        }
-        if (event.key === 'ArrowDown') {
-          event.preventDefault();
-          const next = Math.min(state.hits.length - 1, state.selectedIdx + 1);
-          selectHit(next);
-          scrollItemIntoView(next);
-          return;
+          let pos = items.findIndex((node) => node.classList.contains('is-sel'));
+          if (pos < 0) pos = 0;
+          const nextPos = event.key === 'ArrowUp' ? Math.max(0, pos - 1) : Math.min(items.length - 1, pos + 1);
+          const nextIdx = Number(items[nextPos].dataset.idx);
+          selectHit(nextIdx);
+          scrollItemIntoView(nextIdx);
         }
       }
     });
@@ -663,10 +661,10 @@
     const item = el.list.querySelector('.item[data-idx="' + index + '"]');
     if (!item) return;
     const container = el.viewResults;
-    const itemTop = item.offsetTop - container.offsetTop;
-    const itemBottom = itemTop + item.offsetHeight;
-    if (itemTop < container.scrollTop) container.scrollTop = itemTop - 8;
-    else if (itemBottom > container.scrollTop + container.clientHeight) container.scrollTop = itemBottom - container.clientHeight + 8;
+    const itemRect = item.getBoundingClientRect();
+    const boxRect = container.getBoundingClientRect();
+    if (itemRect.top < boxRect.top) container.scrollTop -= boxRect.top - itemRect.top + 8;
+    else if (itemRect.bottom > boxRect.bottom) container.scrollTop += itemRect.bottom - boxRect.bottom + 8;
   }
 
   /* ---------- 法规原文栏宽度拖动 ---------- */
@@ -746,6 +744,7 @@
 
     state.laws = result.laws || [];
     state.scopes = result.scopes || [];
+    state.folderLabel = result.folderLabel || '法规库';
     state.scopes.forEach((scope) => state.selected.add(scope.id)); // 默认全选
 
     el.statLaw.textContent = state.laws.length + ' 部';

@@ -4,8 +4,8 @@ const path = require('path');
 const library = require('./lib/library');
 const pkg = require('./package.json');
 
-// 程序名格式：法规查询vX.X By CAIJIAXING（X.X = 主版本.次版本，自动跟随 package.json）
-const APP_TITLE = '法规查询v' + pkg.version.split('.').slice(0, 2).join('.') + ' By CAIJIAXING';
+// 程序名格式：法规查询vX.X.X By CAIJIAXING（完整版本号，自动跟随 package.json）
+const APP_TITLE = '法规查询v' + pkg.version + ' By CAIJIAXING';
 
 // 法规 Word 文件所在的文件夹名（位于程序根目录）
 const LIB_DIR_NAME = '法规库';
