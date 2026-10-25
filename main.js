@@ -1,4 +1,5 @@
-const { app, BrowserWindow, ipcMain } = require('electron');
+const { app, BrowserWindow, ipcMain, shell, dialog } = require('electron');
+const fs = require('fs');
 const path = require('path');
 const library = require('./lib/library');
 const pkg = require('./package.json');
@@ -52,6 +53,26 @@ app.whenReady().then(() => {
     path.join(app.getPath('userData'), CACHE_FILE)
   );
   ipcMain.handle('library:load', () => libraryReady);
+
+  // 用系统默认程序打开法规 Word：只允许打开法规库目录内的文件
+  ipcMain.handle('law:open', async (event, rel) => {
+    if (typeof rel !== 'string' || !rel) {
+      dialog.showErrorBox('无法打开文件', '缺少文件路径。');
+      return { ok: false };
+    }
+    const root = path.resolve(path.join(getBaseDir(), LIB_DIR_NAME));
+    const full = path.resolve(root, rel);
+    if (!full.startsWith(root + path.sep) || !fs.existsSync(full)) {
+      dialog.showErrorBox('无法打开文件', '文件不在法规库目录内，或已被移动/删除：\n' + rel);
+      return { ok: false };
+    }
+    const error = await shell.openPath(full);
+    if (error) {
+      dialog.showErrorBox('无法打开文件', error);
+      return { ok: false };
+    }
+    return { ok: true };
+  });
 
   createWindow();
 

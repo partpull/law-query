@@ -607,6 +607,30 @@ mark {
   font-variant-numeric: tabular-nums;
 }
 
+/* 打开该法规的 Word 源文件 */
+.origin-open {
+  flex: none;
+  padding: var(--spacer-4) var(--spacer-12);
+  background: var(--surface-raise);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-full);
+  color: var(--brand-text);
+  font: var(--weight-medium) var(--text-caption) var(--font-sans);
+  cursor: pointer;
+  transition: background 120ms ease-out, border-color 120ms ease-out;
+}
+
+.origin-open:hover:not(:disabled) {
+  background: var(--brand-soft);
+  border-color: var(--brand);
+}
+
+.origin-open:disabled {
+  color: var(--text-muted);
+  cursor: default;
+  opacity: 0.55;
+}
+
 .origin-no {
   font: var(--weight-medium) var(--text-body) var(--font-sans);
   color: var(--brand-text);

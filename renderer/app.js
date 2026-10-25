@@ -34,6 +34,7 @@
     originBody: document.getElementById('origin-body'),
     splitter: document.getElementById('splitter'),
     body: document.querySelector('.body'),
+    originOpen: document.getElementById('origin-open'),
   };
 
   const state = {
@@ -324,7 +325,7 @@
         const matched = matchArticle(article, law.name, query);
         if (!matched) continue; // 每条都检查，命中即收录
         const nextNo = law.articles[i + 1] ? law.articles[i + 1].no : ''; // 下一条的条号，用于说明本条范围
-        const hit = { law: law.name, no: article.no, body: article.body, ranges: matched.ranges, nextNo };
+        const hit = { law: law.name, no: article.no, body: article.body, ranges: matched.ranges, nextNo, lawRel: law.rel };
         lawHits.push(hit);
         hits.push(hit);
       }
@@ -385,6 +386,7 @@
     el.originLoc.textContent = '未选择法条';
     el.originCount.textContent = '';
     el.originFoot.hidden = true;
+    el.originOpen.disabled = true;
     el.originBody.classList.add('is-empty');
     el.originBody.textContent = '点击上方任意一条匹配结果，此处显示该条法条的完整原文。';
   }
@@ -491,6 +493,7 @@
     if (newEl) newEl.classList.add('is-sel');
     state.lastSelEl = newEl || null;
     state.selectedIdx = index;
+    el.originOpen.disabled = !hit.lawRel;
 
     // 原文窗口：条号 + 完整条文 + 本条范围说明，方便一眼确认没有截断
     const chars = hit.body.replace(/\s/g, '').length;
@@ -638,6 +641,18 @@
       const item = event.target.closest('.item');
       if (!item) return;
       selectHit(Number(item.dataset.idx));
+    });
+
+    // 打开 Word：交给主进程用系统默认程序打开当前法条所属文件
+    el.originOpen.addEventListener('click', async () => {
+      const hit = state.hits[state.selectedIdx];
+      if (!hit || !hit.lawRel || !window.lawAPI) return;
+      el.originOpen.disabled = true;
+      try {
+        await window.lawAPI.openLawFile(hit.lawRel);
+      } finally {
+        el.originOpen.disabled = false;
+      }
     });
   }
 
