@@ -32,6 +32,8 @@
     originCount: document.getElementById('origin-count'),
     originFoot: document.getElementById('origin-foot'),
     originBody: document.getElementById('origin-body'),
+    splitter: document.getElementById('splitter'),
+    body: document.querySelector('.body'),
   };
 
   const state = {
@@ -45,6 +47,7 @@
     expandedGroups: new Set(), // 已展开的法规名（默认折叠，点击后展开）
     searchTimer: null, // 防抖定时器，也用于防止连点【遍历】
     lawNameNormCache: new Map(), // 法规名归一化缓存，避免逐条重复计算
+    originWidth: 380, // 法规原文栏当前宽度（px），拖动分隔条后持久化
   };
 
   const CHECK_SVG =
@@ -648,10 +651,71 @@
     else if (itemBottom > container.scrollTop + container.clientHeight) container.scrollTop = itemBottom - container.clientHeight + 8;
   }
 
+  /* ---------- 法规原文栏宽度拖动 ---------- */
+
+  const ORIGIN_MIN = 280;
+  const ORIGIN_DEFAULT = 380;
+  const ORIGIN_RESULTS_MIN = 340; // 结果区至少保留的宽度
+  const LEFT_PANE_W = 264; // 与 style.css 中 .body 第一列保持一致
+  const SPLITTER_W = 6;
+
+  function setOriginWidth(width) {
+    if (!el.body) return;
+    const total = el.body.getBoundingClientRect().width;
+    const max = Math.max(ORIGIN_MIN, total - LEFT_PANE_W - SPLITTER_W - ORIGIN_RESULTS_MIN);
+    const next = Math.round(Math.max(ORIGIN_MIN, Math.min(max, width)));
+    state.originWidth = next;
+    el.body.style.setProperty('--origin-w', next + 'px');
+  }
+
+  function initSplitter() {
+    if (!el.splitter || !el.body) return;
+
+    const saved = Number(localStorage.getItem('lawquery.originWidth'));
+    setOriginWidth(saved > 0 ? saved : ORIGIN_DEFAULT);
+
+    let dragging = false;
+
+    el.splitter.addEventListener('pointerdown', (event) => {
+      if (event.button !== 0) return;
+      dragging = true;
+      el.splitter.setPointerCapture(event.pointerId);
+      el.splitter.classList.add('is-drag');
+      document.body.classList.add('is-resizing');
+      event.preventDefault();
+    });
+
+    el.splitter.addEventListener('pointermove', (event) => {
+      if (!dragging) return;
+      setOriginWidth(el.body.getBoundingClientRect().right - event.clientX);
+    });
+
+    const stopDrag = () => {
+      if (!dragging) return;
+      dragging = false;
+      el.splitter.classList.remove('is-drag');
+      document.body.classList.remove('is-resizing');
+      localStorage.setItem('lawquery.originWidth', String(state.originWidth));
+    };
+    el.splitter.addEventListener('pointerup', stopDrag);
+    el.splitter.addEventListener('pointercancel', stopDrag);
+
+    // 键盘微调：← 加宽原文栏，→ 收窄
+    el.splitter.addEventListener('keydown', (event) => {
+      if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return;
+      event.preventDefault();
+      setOriginWidth(state.originWidth + (event.key === 'ArrowLeft' ? 24 : -24));
+      localStorage.setItem('lawquery.originWidth', String(state.originWidth));
+    });
+
+    window.addEventListener('resize', () => setOriginWidth(state.originWidth));
+  }
+
   /* ---------- 启动：读取法规库 ---------- */
 
   async function init() {
     bindEvents();
+    initSplitter();
 
     if (!window.lawAPI) {
       el.loadNote.textContent = '初始化失败：未加载到主进程接口';
